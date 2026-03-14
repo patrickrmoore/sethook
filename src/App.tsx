@@ -21,7 +21,7 @@ function App() {
     "Press start, keep still, and wait for the strike cue.",
   );
   const [lastReactionMs, setLastReactionMs] = useState<number | null>(null);
-  const [reactionTimes, setReactionTimes] = useState<ReactionEntry[]>([]);
+  const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const [responseSource, setResponseSource] = useState<ResponseSource | null>(
     null,
   );
@@ -37,7 +37,6 @@ function App() {
   const [sensorEventsSeen, setSensorEventsSeen] = useState(false);
   const [canInstall, setCanInstall] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
-  const [currentCueType, setCurrentCueType] = useState<CueType | null>(null);
 
   const phaseRef = useRef<SessionPhase>("idle");
   const cueTimeoutRef = useRef<number | null>(null);
@@ -53,15 +52,6 @@ function App() {
     null,
   );
   const installPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
-  const currentCueTypeRef = useRef<CueType | null>(null);
-  const speechWarmedRef = useRef(false);
-
-  const availableCueTypes = useMemo<CueType[]>(() => {
-    const types: CueType[] = ["visual"];
-    if ("vibrate" in navigator) types.push("vibration");
-    if ("speechSynthesis" in window) types.push("audio");
-    return types;
-  }, []);
 
   const updatePhase = useCallback((nextPhase: SessionPhase) => {
     phaseRef.current = nextPhase;
@@ -79,12 +69,6 @@ function App() {
       window.clearTimeout(cueTimeoutRef.current);
       cueTimeoutRef.current = null;
     }
-    if ("speechSynthesis" in window) {
-      speechSynthesis.cancel();
-    }
-    if ("vibrate" in navigator) {
-      navigator.vibrate(0);
-    }
   }, []);
 
   const finishRound = useCallback(
@@ -98,26 +82,15 @@ function App() {
         Math.round(performance.now() - cueShownAtRef.current),
       );
 
-      const cueType = currentCueTypeRef.current ?? "visual";
-
       clearQueuedCue();
       cueShownAtRef.current = null;
       setLastReactionMs(reactionMs);
-      setReactionTimes((previous) =>
-        [{ ms: reactionMs, cueType, input: source }, ...previous].slice(0, 36),
-      );
+      setReactionTimes((previous) => [reactionMs, ...previous].slice(0, 12));
       setResponseSource(source);
-
-      const cueLabel =
-        cueType === "vibration"
-          ? "Vibration"
-          : cueType === "audio"
-            ? "Audio"
-            : "Visual";
       setStatus(
-        `${cueLabel} · ${
-          source === "motion" ? "Hook set" : "Manual"
-        } response in ${reactionMs} ms.`,
+        source === "motion"
+          ? `Hook set detected in ${reactionMs} ms.`
+          : `Manual response recorded in ${reactionMs} ms.`,
       );
       updatePhase("responded");
       vibrate(35);
@@ -130,48 +103,20 @@ function App() {
     cueShownAtRef.current = null;
     setResponseSource(null);
     setMotionDetected(false);
-    setCurrentCueType(null);
-    currentCueTypeRef.current = null;
     setStatus("Wait for the strike cue. Keep your wrist relaxed and ready.");
     updatePhase("arming");
-
-    if (!speechWarmedRef.current && "speechSynthesis" in window) {
-      speechWarmedRef.current = true;
-      const warmUp = new SpeechSynthesisUtterance("");
-      warmUp.volume = 0;
-      speechSynthesis.speak(warmUp);
-    }
 
     const delay = Math.round(
       Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS) + MIN_DELAY_MS,
     );
 
     cueTimeoutRef.current = window.setTimeout(() => {
-      const cueType =
-        availableCueTypes[
-          Math.floor(Math.random() * availableCueTypes.length)
-        ];
-      currentCueTypeRef.current = cueType;
-      setCurrentCueType(cueType);
       cueShownAtRef.current = performance.now();
-
-      if (cueType === "vibration") {
-        vibrate([120, 60, 120]);
-      } else if (cueType === "audio") {
-        const utterance = new SpeechSynthesisUtterance("Set!");
-        utterance.rate = 1.2;
-        utterance.pitch = 1.1;
-        utterance.volume = 1;
-        speechSynthesis.speak(utterance);
-      }
-
-      if (cueType === "visual") {
-        setStatus("Strike now! React to the flash.");
-      }
-
+      setStatus("Strike now! Flick your wrist as soon as the indicator fires.");
       updatePhase("ready");
+      vibrate([120, 60, 120]);
     }, delay);
-  }, [clearQueuedCue, updatePhase, vibrate, availableCueTypes]);
+  }, [clearQueuedCue, updatePhase, vibrate]);
 
   const requestMotionAccess = useCallback(async () => {
     if (
@@ -374,64 +319,31 @@ function App() {
     [clearQueuedCue],
   );
 
-  const statsByType = useMemo(() => {
-    const result: Record<
-      CueType,
-      { best: number | null; avg: number | null; count: number }
-    > = {
-      vibration: { best: null, avg: null, count: 0 },
-      audio: { best: null, avg: null, count: 0 },
-      visual: { best: null, avg: null, count: 0 },
-    };
-
-    for (const entry of reactionTimes) {
-      const bucket = result[entry.cueType];
-      bucket.count += 1;
-      bucket.avg =
-        bucket.avg === null
-          ? entry.ms
-          : Math.round(
-              (bucket.avg * (bucket.count - 1) + entry.ms) / bucket.count,
-            );
-      bucket.best =
-        bucket.best === null ? entry.ms : Math.min(bucket.best, entry.ms);
+  const averageReaction = useMemo(() => {
+    if (reactionTimes.length === 0) {
+      return null;
     }
 
-    return result;
-  }, [reactionTimes]);
-
-  const averageReaction = useMemo(() => {
-    if (reactionTimes.length === 0) return null;
-    return Math.round(
-      reactionTimes.reduce((sum, e) => sum + e.ms, 0) / reactionTimes.length,
-    );
+    const total = reactionTimes.reduce((sum, time) => sum + time, 0);
+    return Math.round(total / reactionTimes.length);
   }, [reactionTimes]);
 
   const bestReaction = useMemo(() => {
-    if (reactionTimes.length === 0) return null;
-    return Math.min(...reactionTimes.map((e) => e.ms));
+    if (reactionTimes.length === 0) {
+      return null;
+    }
+
+    return Math.min(...reactionTimes);
   }, [reactionTimes]);
 
-  const isVisualRound = phase === "ready" && currentCueType === "visual";
-
-  const indicatorPhaseClass =
-    phase === "ready" && currentCueType !== "visual"
-      ? "phase-arming"
-      : `phase-${phase}`;
-
-  const indicatorLabel = isVisualRound
-    ? "STRIKE"
-    : phase === "responded"
-      ? "LANDED"
-      : phase === "arming" || (phase === "ready" && currentCueType !== "visual")
-        ? "WAIT"
-        : "READY";
-
-  const cueTypeLabel = (type: CueType) =>
-    type === "vibration" ? "Vibration" : type === "audio" ? "Audio" : "Visual";
-
-  const cueTypeIcon = (type: CueType) =>
-    type === "vibration" ? "\uD83D\uDCF3" : type === "audio" ? "\uD83D\uDD0A" : "\uD83D\uDCA1";
+  const indicatorLabel =
+    phase === "ready"
+      ? "STRIKE"
+      : phase === "responded"
+        ? "LANDED"
+        : phase === "arming"
+          ? "WAIT"
+          : "READY";
 
   return (
     <main className="app-shell">
@@ -439,9 +351,9 @@ function App() {
         <p className="eyebrow">Fishing reaction trainer</p>
         <h1>Train your hook set timing.</h1>
         <p className="hero-copy">
-          Each round delivers a random stimulus—vibration, a voice saying
-          &ldquo;Set!&rdquo;, or a visual flash—then measures how fast you
-          react. Compare your response speed across all three senses.
+          Wait for a random strike cue, then flick your wrist as fast as you
+          can. On supported devices, the cue also uses vibration for haptic
+          feedback.
         </p>
 
         <div className="control-row">
@@ -470,83 +382,27 @@ function App() {
         </div>
 
         <div className="status-strip">
-          <span
-            className={`status-pill ${
-              phase === "ready" && currentCueType !== "visual"
-                ? "status-arming"
-                : `status-${phase}`
-            }`}
-          >
-            {phase === "responded" && currentCueType
-              ? cueTypeLabel(currentCueType).toUpperCase()
-              : indicatorLabel}
+          <span className={`status-pill status-${phase}`}>
+            {indicatorLabel}
           </span>
           <p>{status}</p>
         </div>
       </section>
 
       <section className="board">
-        <div className={`indicator-card ${indicatorPhaseClass}`}>
+        <div className={`indicator-card phase-${phase}`}>
           <div className="water-ring water-ring-outer" />
           <div className="water-ring water-ring-inner" />
           <div className="indicator-core">
             <span className="indicator-title">{indicatorLabel}</span>
             <strong>
-              {isVisualRound
+              {phase === "ready"
                 ? "Flick now"
                 : phase === "responded"
                   ? `${lastReactionMs ?? 0} ms`
                   : "Hold steady"}
             </strong>
-            {phase === "responded" && currentCueType && (
-              <span className="cue-type-badge">
-                {cueTypeIcon(currentCueType)} {cueTypeLabel(currentCueType)}
-              </span>
-            )}
           </div>
-        </div>
-
-        <div className="stimulus-stats">
-          {(["vibration", "audio", "visual"] as CueType[]).map((type) => (
-            <article
-              key={type}
-              className={`stimulus-stat-card${
-                !availableCueTypes.includes(type) ? " stat-unavailable" : ""
-              }${
-                phase === "responded" && currentCueType === type
-                  ? " stat-active"
-                  : ""
-              }`}
-            >
-              <span className="stimulus-stat-icon">
-                {cueTypeIcon(type)}
-              </span>
-              <h3>{cueTypeLabel(type)}</h3>
-              {!availableCueTypes.includes(type) && (
-                <span className="stat-note">Not supported</span>
-              )}
-              <div className="stimulus-stat-row">
-                <span>Best</span>
-                <strong>
-                  {statsByType[type].best !== null
-                    ? `${statsByType[type].best} ms`
-                    : "—"}
-                </strong>
-              </div>
-              <div className="stimulus-stat-row">
-                <span>Avg</span>
-                <strong>
-                  {statsByType[type].avg !== null
-                    ? `${statsByType[type].avg} ms`
-                    : "—"}
-                </strong>
-              </div>
-              <div className="stimulus-stat-row">
-                <span>Rounds</span>
-                <strong>{statsByType[type].count}</strong>
-              </div>
-            </article>
-          ))}
         </div>
 
         <div className="metric-grid">
@@ -557,13 +413,13 @@ function App() {
             </strong>
           </article>
           <article className="metric-card">
-            <span>Best (overall)</span>
+            <span>Best</span>
             <strong>
               {bestReaction !== null ? `${bestReaction} ms` : "—"}
             </strong>
           </article>
           <article className="metric-card">
-            <span>Average (overall)</span>
+            <span>Average</span>
             <strong>
               {averageReaction !== null ? `${averageReaction} ms` : "—"}
             </strong>
@@ -602,16 +458,10 @@ function App() {
               Haptics: {"vibrate" in navigator ? "available" : "not supported"}
             </li>
             <li>
-              Speech:{" "}
-              {"speechSynthesis" in window ? "available" : "not supported"}
-            </li>
-            <li>
               Motion seen this session: {motionDetected ? "yes" : "not yet"}
             </li>
             <li>PWA installed: {isInstalled ? "yes" : "not yet"}</li>
-            <li>
-              Available cues: {availableCueTypes.map(cueTypeLabel).join(", ")}
-            </li>
+            <li>Trigger uses wrist flick acceleration, jerk, or rotation.</li>
           </ul>
         </article>
 
@@ -622,23 +472,15 @@ function App() {
               Open the app on your phone and enable motion access if prompted.
             </li>
             <li>
-              Tap start and keep still. A random cue type will fire after a
-              delay.
+              If sensor events stay at zero, open the app from a secure origin
+              or installed PWA.
             </li>
             <li>
-              <strong>Vibration</strong> — feel the buzz, flick your wrist.
+              Tap start, keep your wrist quiet, and watch for the strike cue.
             </li>
             <li>
-              <strong>Audio</strong> — hear &ldquo;Set!&rdquo;, flick your
-              wrist.
-            </li>
-            <li>
-              <strong>Visual</strong> — see the indicator flash, flick your
-              wrist.
-            </li>
-            <li>
-              Your reaction time is measured per stimulus type so you can compare
-              senses.
+              Flick your wrist when the indicator lights up to log your reaction
+              time.
             </li>
           </ol>
         </article>
@@ -652,8 +494,6 @@ export default App;
 type SessionPhase = "idle" | "arming" | "ready" | "responded";
 type MotionPermissionState = "unsupported" | "prompt" | "granted" | "denied";
 type ResponseSource = "motion" | "manual";
-type CueType = "vibration" | "audio" | "visual";
-type ReactionEntry = { ms: number; cueType: CueType; input: ResponseSource };
 
 const MIN_DELAY_MS = 2000;
 const MAX_DELAY_MS = 6500;
