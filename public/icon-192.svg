@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-labelledby="title desc">
+  <title>Hookset Trainer icon</title>
+  <desc>Round bobber icon for the Hookset Trainer app.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f2430" />
+      <stop offset="100%" stop-color="#0a4e59" />
+    </linearGradient>
+    <linearGradient id="bobber" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff3d7" />
+      <stop offset="48%" stop-color="#ffd260" />
+      <stop offset="49%" stop-color="#ff6b3d" />
+      <stop offset="100%" stop-color="#6d1700" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="44" fill="url(#bg)" />
+  <circle cx="96" cy="104" r="56" fill="url(#bobber)" stroke="#d3f8ff" stroke-width="8" />
+  <path d="M96 18v34" stroke="#d3f8ff" stroke-width="10" stroke-linecap="round" />
+  <path d="M40 152c16 10 33 14 56 14s40-4 56-14" fill="none" stroke="#86f4ff" stroke-opacity="0.55" stroke-width="8" stroke-linecap="round" />
+</svg>
