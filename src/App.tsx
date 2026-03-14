@@ -148,9 +148,7 @@ function App() {
 
     cueTimeoutRef.current = window.setTimeout(() => {
       const cueType =
-        availableCueTypes[
-          Math.floor(Math.random() * availableCueTypes.length)
-        ];
+        availableCueTypes[Math.floor(Math.random() * availableCueTypes.length)];
       currentCueTypeRef.current = cueType;
       setCurrentCueType(cueType);
       cueShownAtRef.current = performance.now();
@@ -431,7 +429,11 @@ function App() {
     type === "vibration" ? "Vibration" : type === "audio" ? "Audio" : "Visual";
 
   const cueTypeIcon = (type: CueType) =>
-    type === "vibration" ? "\uD83D\uDCF3" : type === "audio" ? "\uD83D\uDD0A" : "\uD83D\uDCA1";
+    type === "vibration"
+      ? "\uD83D\uDCF3"
+      : type === "audio"
+        ? "\uD83D\uDD0A"
+        : "\uD83D\uDCA1";
 
   return (
     <main className="app-shell">
@@ -518,9 +520,7 @@ function App() {
                   : ""
               }`}
             >
-              <span className="stimulus-stat-icon">
-                {cueTypeIcon(type)}
-              </span>
+              <span className="stimulus-stat-icon">{cueTypeIcon(type)}</span>
               <h3>{cueTypeLabel(type)}</h3>
               {!availableCueTypes.includes(type) && (
                 <span className="stat-note">Not supported</span>
@@ -637,8 +637,8 @@ function App() {
               wrist.
             </li>
             <li>
-              Your reaction time is measured per stimulus type so you can compare
-              senses.
+              Your reaction time is measured per stimulus type so you can
+              compare senses.
             </li>
           </ol>
         </article>
