@@ -246,9 +246,7 @@
   border-radius: 1.25rem;
   padding: 1.15rem;
   text-align: center;
-  transition:
-    border-color 300ms ease,
-    box-shadow 300ms ease;
+  transition: border-color 300ms ease, box-shadow 300ms ease;
 }
 
 .stimulus-stat-card.stat-active {
